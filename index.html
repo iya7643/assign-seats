@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/test/favicon.ico" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+<title>Assign Seats</title>
+<style>
+    .material-symbols-outlined {
+        font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24
+    }
+</style>
+<script src="https://unpkg.com/vue@next"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body>
+<div id="app" class="w-screen h-screen">
+    <!-- トップバー -->
+    <ul class="grid w-full grid-cols-2 sticky top-0">
+        <li v-for="view in data.views" :key="view.id">
+            <input type="radio" :id="view.id" class="hidden peer" value="" 
+                :checked="selectedView?.id === view.id"
+                @change="selectedView = view"
+            />
+            <label :for="view.id"
+                class="inline-flex items-center justify-between w-full p-7 
+                    text-white border border-gray-200 cursor-pointer
+                    hover:bg-gray-700"
+                :class="selectedView?.id === view.id ? 'bg-gray-700' : 'bg-gray-400'"
+            >
+                <div class="w-full text-3xl font-semibold">
+                    {{ view.name }}
+                </div>
+            </label>
+        </li>
+    </ul>
+
+    <!-- サイドバー -->
+    <div class="flex flex-col justify-between items-center border border-gray-300 bg-white fixed left-0 w-32 h-full">
+        <ul class="grid gap-6 mt-8">
+            <li v-for="area in data.areas" :key="area.id">
+                <input type="radio" :id="area.id" class="hidden peer" value=""
+                       :checked="selectedArea?.id === area.id"
+                       @change="fun.changeArea(area)"
+                />
+                <label :for="area.id"
+                       class="inline-flex items-center w-24 h-24
+                        text-white border border-gray-200 cursor-pointer
+                        hover:bg-gray-700"
+                       :class="selectedArea?.id === area.id ? 'bg-gray-700' : 'bg-gray-400'"
+                >
+                    <div class="w-full text-center text-lg font-semibold">
+                        {{ area.value }}エリア
+                    </div>
+                </label>
+            </li>
+            <li class="flex justify-center">
+                <button class="border border-gray-400 w-12 h-12 text-2xl rounded-md material-symbols-outlined hover:bg-black hover:text-white">
+                    add
+                </button>
+            </li>
+        </ul>
+        <ul class="grid gap-6 mb-32">
+            <li class="flex justify-center">
+                <button class="border border-gray-400 w-12 h-12 text-2xl rounded-full material-symbols-outlined hover:bg-black hover:text-white">
+                    add
+                </button>
+            </li>
+            <li v-for="floor in data.floors" :key="floor.id">
+                <input type="radio" :id="floor.id" class="hidden peer" value=""
+                    :checked="selectedFloor?.id === floor.id"
+                    @change="fun.changeFloor(floor)"
+                />
+                <label :for="floor.id"
+                    class="inline-flex items-center justify-between w-24 h-24 rounded-full
+                        text-white border border-gray-200 cursor-pointer
+                        hover:bg-gray-700"
+                    :class="selectedFloor?.id === floor.id ? 'bg-gray-700' : 'bg-gray-400'"
+                >
+                    <div class="w-full text-3xl text-center font-semibold">
+                        {{ floor.value }}F
+                    </div>
+                </label>
+            </li>
+        </ul>
+    </div>
+
+    <!-- 座席 -->
+    <div class="pt-12 pl-48">
+        <p class="text-2xl">
+            {{ `${selectedArea.value}エリア - ${selectedFloor.value}F` }}
+        </p>
+        <table class="table-fixed min-w-max min-h-max select-none bg-white"
+               @mouseleave="isMouseDown = false"
+        >
+            <thead class="bg-gray-900">
+                <tr>
+                    <td v-for="colNo in maxColNo" :key="colNo"
+                        class="w-16 h-8 px-2 border border-gray-300 text-white text-lg font-bold"
+                    >
+                        <div v-if="colNo === 1">
+                            <div
+                                 class="material-symbols-outlined text-2xl cursor-pointer w-full text-right"
+                                 @click="fun.addCol"
+                            >
+                                add_circle
+                            </div>
+                            <div class="material-symbols-outlined text-2xl cursor-pointer w-full text-left"
+                                 @click="fun.addRow"
+                            >
+                                add_circle
+                            </div>
+                        </div>
+                        <div v-else class="text-right">
+                            {{ colNo - 1 }}
+                        </div>
+                    </td>
+                </tr>
+            </thead>
+            <tbody class="">
+                <tr v-for="rowNo in maxRowNo" :key="rowNo">
+                    <template v-for="colNo in maxColNo" :key="colNo">
+                        <td v-if="colNo === 1"
+                            class="px-2 border border-gray-300 bg-gray-900 text-white text-lg font-bold text-right"
+                        >
+                            {{ rowNo }}
+                        </td>
+                        <td v-else
+                            class="border border-gray-300"
+                            @click="fun.setSeat(rowNo, colNo)"
+                            @mousedown="isMouseDown = true"
+                            @mouseup = "isMouseDown = false"
+                            @mousemove="fun.setSeat(rowNo, colNo)"
+                        >
+                            <div v-if="selectedView.id === 'view1'"
+                                 class="flex justify-center items-center w-16 h-16"
+                            >
+                                <span class="material-symbols-outlined p-2 text-5xl"
+                                      :class="fun.seatType(rowNo, colNo).selectedColor ?? ''"
+                                      v-if="fun.seatType(rowNo, colNo) !== null"
+                                >
+                                    {{ fun.seatType(rowNo, colNo).icon }}
+                                </span>
+                            </div>
+                            <div v-else-if="selectedView.id === 'view2'"
+                                 class="flex justify-center items-center w-16 h-16 font-bold"
+                                 :class="fun.blockInfo(rowNo, colNo).class"
+                            >
+                                <span class="text-black">
+                                    {{ fun.blockInfo(rowNo, colNo).value }}
+                                </span>
+                            </div>
+                            <div v-else
+                                 class="flex justify-center items-center w-16 h-16"
+                            >
+                            </div>
+                        </td>
+                    </template>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- アイテム選択バー -->
+    <div class="border border-gray-300 bg-white/80 fixed shadow-xl right-6 bottom-6 p-5 max-w-[70%]">
+        <ul v-if="selectedView.id === 'view1'"
+            class="flex flex-wrap gap-6"
+        >
+            <li v-for="item in data.items" :key="item.id"
+                class="relative border border-gray-300 select-none w-32 h-32 rounded-lg"
+            >
+                <input type="checkbox" :id="item.id" class="hidden peer" value=""
+                    :checked="selectedItem?.id === item.id"
+                    @change="selectedItem = $event.target.checked ? item : null"
+                />
+                <label :for="item.id"
+                    class="cursor-pointer block w-full h-full rounded-lg"
+                    :class="selectedItem?.id === item.id ? item.type.selectedColor : item.type.baseColor"
+                >
+                    <div v-show="selectedItem?.id === item.id"
+                        class="absolute top-1 right-1"
+                    >
+                        <span class="material-symbols-outlined text-3xl text-white">
+                            check_circle
+                        </span>
+                    </div>
+                    <div class="flex justify-center items-center h-full flex-col">
+                        <span class="material-symbols-outlined text-7xl">
+                            {{ item.type.icon }}
+                        </span>
+                        <p class="text-center font-bold">
+                            {{ item.type.name}}
+                        </p>
+                    </div>
+                </label>
+            </li>
+        </ul>
+        <ul v-else-if="selectedView.id === 'view2'"
+            class="flex flex-wrap gap-6"
+        >
+            <li v-for="block in data.blocks" :key="block.id"
+                class="relative border border-gray-300 select-none w-24 h-24 rounded-lg"
+            >
+                <input type="radio" :id="block.id" class="hidden peer" value=""
+                       :checked="selectedBlock?.id === block.id"
+                       @change="selectedBlock = $event.target.checked ? block : null"
+                />
+                <label :for="block.id"
+                       class="cursor-pointer block w-full h-full rounded-lg"
+                       :class="block.class"
+                >
+                    <div v-show="selectedBlock?.id === block.id"
+                         class="absolute top-1 right-1"
+                    >
+                        <span class="material-symbols-outlined text-2xl text-white">
+                            check_circle
+                        </span>
+                    </div>
+                    <div class="flex justify-center items-center h-full flex-col">
+                        <div v-if="block.id === 'delete'">
+                            <span class="material-symbols-outlined text-6xl">
+                                ink_eraser
+                            </span>
+                            <p class="text-center font-bold">
+                                削除
+                            </p>
+                        </div>
+                        <div v-else>
+                            <p class="text-xl font-bold">
+                                {{ block.value }}ブロック
+                            </p>
+                        </div>
+                    </div>
+                </label>
+            </li>
+        </ul>
+    </div>
+</div>
+
+
+
+<script>
+const { createApp, ref } = Vue;
+
+createApp({
+    setup() {
+        const data = {
+            'views':  [
+                {id: 'view1', name: '座席ビュー'},
+                {id: 'view2', name: 'ブロックビュー'},
+            ],
+            'areas': [
+                {id: 'area1', value: '東'},
+                {id: 'area2', value: '西'},
+            ],
+            'blocks': [
+                {id: 'block1', value: 'A', class: 'bg-red-400 text-white'},
+                {id: 'block2', value: 'B', class: 'bg-orange-400 text-white'},
+                {id: 'block3', value: 'C', class: 'bg-amber-400 text-white'},
+                {id: 'block4', value: 'D', class: 'bg-yellow-400 text-white'},
+                {id: 'block5', value: 'E', class: 'bg-lime-400 text-white'},
+                {id: 'block6', value: 'F', class: 'bg-green-400 text-white'},
+                {id: 'block7', value: 'G', class: 'bg-emerald-400 text-white'},
+                {id: 'block8', value: 'H', class: 'bg-teal-400 text-white'},
+                {id: 'block9', value: 'I', class: 'bg-cyan-400 text-white'},
+                {id: 'block10', value: 'J', class: 'bg-sky-400 text-white'},
+                {id: 'block11', value: 'K', class: 'bg-blue-400 text-white'},
+                {id: 'block12', value: 'L', class: 'bg-indigo-400 text-white'},
+                {id: 'block13', value: 'M', class: 'bg-violet-400 text-white'},
+                {id: 'block14', value: 'N', class: 'bg-purple-400 text-white'},
+                {id: 'block15', value: 'O', class: 'bg-fuchsia-400 text-white'},
+                {id: 'block16', value: 'P', class: 'bg-pink-400 text-white'},
+                {id: 'block17', value: 'Q', class: 'bg-rose-400 text-white'},
+                {id: 'delete', value: '', class: 'bg-gray-400 text-white'},
+            ],
+            'floors': [
+                {id: 'floor3', value: 3},
+                {id: 'floor2', value: 2},
+                {id: 'floor1', value: 1},
+            ],
+            'types': [
+                {id: 'arena', category: 'seat_type', name: 'アリーナ席', icon: 'chair', baseColor: 'text-red-700 hover:text-white bg-white hover:bg-red-700', selectedColor: 'text-white bg-red-800'},
+                {id: 'a', category: 'seat_type', name: '指定席A', icon: 'chair', baseColor: 'text-blue-700 hover:text-white bg-white hover:bg-blue-700', selectedColor: 'text-white bg-blue-800'},
+                {id: 'b', category: 'seat_type', name: '指定席B', icon: 'chair', baseColor: 'text-green-700 hover:text-white bg-white hover:bg-green-700', selectedColor: 'text-white bg-green-800'},
+                {id: 'road', category: '', name: '通路', icon: 'background_grid_small', baseColor: 'text-gray-700 hover:text-white bg-white hover:bg-gray-700', selectedColor: 'text-gray-500 bg-gray-700'},
+                {id: 'ng', category: '', name: '通行不可', icon: 'block', baseColor: 'text-gray-700 hover:text-white bg-white hover:bg-gray-700', selectedColor: 'text-white bg-gray-700'},
+                {id: 'delete', category: '', name: '削除', icon: 'ink_eraser', baseColor: 'text-gray-700 hover:text-white bg-white hover:bg-gray-700', selectedColor: 'text-white bg-gray-700'},
+            ],
+            'items': [],
+            'seats': (() => {
+                const rawData = [
+                    {id:1001,area:"東",floor:1,block:"A",row:1,no:1,typeId:"a"},
+                    {id:1002,area:"東",floor:1,block:"A",row:1,no:2,typeId:"a"},
+                    {id:1003,area:"東",floor:1,block:"A",row:1,no:3,typeId:"a"},
+                    {id:1004,area:"東",floor:1,block:"A",row:1,no:4,typeId:"a"},
+                    {id:1005,area:"東",floor:1,block:"",row:1,no:5,typeId:"road"},
+                    {id:1006,area:"東",floor:1,block:"A",row:1,no:6,typeId:"arena"},
+                    {id:1007,area:"東",floor:1,block:"B",row:1,no:7,typeId:"arena"},
+                    {id:1008,area:"東",floor:1,block:"",row:1,no:8,typeId:"road"},
+                    {id:1009,area:"東",floor:1,block:"B",row:1,no:9,typeId:"a"},
+                    {id:1010,area:"東",floor:1,block:"B",row:1,no:10,typeId:"a"},
+                    {id:1011,area:"東",floor:1,block:"B",row:1,no:11,typeId:"a"},
+                    {id:1012,area:"東",floor:1,block:"B",row:1,no:12,typeId:"a"},
+                    {id:1013,area:"東",floor:1,block:"A",row:2,no:1,typeId:"a"},
+                    {id:1014,area:"東",floor:1,block:"A",row:2,no:2,typeId:"a"},
+                    {id:1015,area:"東",floor:1,block:"A",row:2,no:3,typeId:"a"},
+                    {id:1016,area:"東",floor:1,block:"A",row:2,no:4,typeId:"a"},
+                    {id:1017,area:"東",floor:1,block:"",row:2,no:5,typeId:"road"},
+                    {id:1018,area:"東",floor:1,block:"A",row:2,no:6,typeId:"arena"},
+                    {id:1019,area:"東",floor:1,block:"B",row:2,no:7,typeId:"arena"},
+                    {id:1020,area:"東",floor:1,block:"",row:2,no:8,typeId:"road"},
+                    {id:1021,area:"東",floor:1,block:"B",row:2,no:9,typeId:"a"},
+                    {id:1022,area:"東",floor:1,block:"B",row:2,no:10,typeId:"a"},
+                    {id:1023,area:"東",floor:1,block:"B",row:2,no:11,typeId:"a"},
+                    {id:1024,area:"東",floor:1,block:"B",row:2,no:12,typeId:"a"},
+                    {id:1025,area:"東",floor:1,block:"A",row:3,no:1,typeId:"a"},
+                    {id:1026,area:"東",floor:1,block:"A",row:3,no:2,typeId:"a"},
+                    {id:1027,area:"東",floor:1,block:"A",row:3,no:3,typeId:"a"},
+                    {id:1028,area:"東",floor:1,block:"A",row:3,no:4,typeId:"a"},
+                    {id:1029,area:"東",floor:1,block:"",row:3,no:5,typeId:"road"},
+                    {id:1030,area:"東",floor:1,block:"A",row:3,no:6,typeId:"arena"},
+                    {id:1031,area:"東",floor:1,block:"B",row:3,no:7,typeId:"arena"},
+                    {id:1032,area:"東",floor:1,block:"",row:3,no:8,typeId:"road"},
+                    {id:1033,area:"東",floor:1,block:"B",row:3,no:9,typeId:"a"},
+                    {id:1034,area:"東",floor:1,block:"B",row:3,no:10,typeId:"a"},
+                    {id:1035,area:"東",floor:1,block:"B",row:3,no:11,typeId:"a"},
+                    {id:1036,area:"東",floor:1,block:"B",row:3,no:12,typeId:"a"},
+                    {id:1037,area:"東",floor:1,block:"",row:4,no:1,typeId:"road"},
+                    {id:1038,area:"東",floor:1,block:"",row:4,no:2,typeId:"road"},
+                    {id:1039,area:"東",floor:1,block:"",row:4,no:3,typeId:"road"},
+                    {id:1040,area:"東",floor:1,block:"",row:4,no:4,typeId:"road"},
+                    {id:1041,area:"東",floor:1,block:"",row:4,no:5,typeId:"road"},
+                    {id:1042,area:"東",floor:1,block:"",row:4,no:6,typeId:"road"},
+                    {id:1043,area:"東",floor:1,block:"",row:4,no:7,typeId:"road"},
+                    {id:1044,area:"東",floor:1,block:"",row:4,no:8,typeId:"road"},
+                    {id:1045,area:"東",floor:1,block:"",row:4,no:9,typeId:"road"},
+                    {id:1046,area:"東",floor:1,block:"",row:4,no:10,typeId:"road"},
+                    {id:1047,area:"東",floor:1,block:"",row:4,no:11,typeId:"road"},
+                    {id:1048,area:"東",floor:1,block:"",row:4,no:12,typeId:"road"},
+                    {id:1049,area:"東",floor:1,block:"C",row:5,no:1,typeId:"a"},
+                    {id:1050,area:"東",floor:1,block:"C",row:5,no:2,typeId:"a"},
+                    {id:1051,area:"東",floor:1,block:"",row:5,no:3,typeId:"road"},
+                    {id:1052,area:"東",floor:1,block:"C",row:5,no:4,typeId:"b"},
+                    {id:1053,area:"東",floor:1,block:"C",row:5,no:5,typeId:"b"},
+                    {id:1054,area:"東",floor:1,block:"C",row:5,no:6,typeId:"b"},
+                    {id:1055,area:"東",floor:1,block:"D",row:5,no:7,typeId:"b"},
+                    {id:1056,area:"東",floor:1,block:"D",row:5,no:8,typeId:"b"},
+                    {id:1057,area:"東",floor:1,block:"D",row:5,no:9,typeId:"b"},
+                    {id:1058,area:"東",floor:1,block:"",row:5,no:10,typeId:"road"},
+                    {id:1059,area:"東",floor:1,block:"D",row:5,no:11,typeId:"a"},
+                    {id:1060,area:"東",floor:1,block:"D",row:5,no:12,typeId:"a"},
+                    {id:1061,area:"東",floor:1,block:"",row:6,no:1,typeId:"ng"},
+                    {id:1062,area:"東",floor:1,block:"",row:6,no:2,typeId:"ng"},
+                    {id:1063,area:"東",floor:1,block:"",row:6,no:3,typeId:"road"},
+                    {id:1064,area:"東",floor:1,block:"C",row:6,no:4,typeId:"b"},
+                    {id:1065,area:"東",floor:1,block:"C",row:6,no:5,typeId:"b"},
+                    {id:1066,area:"東",floor:1,block:"C",row:6,no:6,typeId:"b"},
+                    {id:1067,area:"東",floor:1,block:"D",row:6,no:7,typeId:"b"},
+                    {id:1068,area:"東",floor:1,block:"D",row:6,no:8,typeId:"b"},
+                    {id:1069,area:"東",floor:1,block:"D",row:6,no:9,typeId:"b"},
+                    {id:1070,area:"東",floor:1,block:"",row:6,no:10,typeId:"road"},
+                    {id:1071,area:"東",floor:1,block:"",row:6,no:11,typeId:"ng"},
+                    {id:1072,area:"東",floor:1,block:"",row:6,no:12,typeId:"ng"},
+                    {id:1073,area:"東",floor:1,block:"",row:7,no:1,typeId:"ng"},
+                    {id:1074,area:"東",floor:1,block:"",row:7,no:2,typeId:"ng"},
+                    {id:1075,area:"東",floor:1,block:"",row:7,no:3,typeId:"road"},
+                    {id:1076,area:"東",floor:1,block:"C",row:7,no:4,typeId:"b"},
+                    {id:1077,area:"東",floor:1,block:"C",row:7,no:5,typeId:"b"},
+                    {id:1078,area:"東",floor:1,block:"C",row:7,no:6,typeId:"b"},
+                    {id:1079,area:"東",floor:1,block:"D",row:7,no:7,typeId:"b"},
+                    {id:1080,area:"東",floor:1,block:"D",row:7,no:8,typeId:"b"},
+                    {id:1081,area:"東",floor:1,block:"D",row:7,no:9,typeId:"b"},
+                    {id:1082,area:"東",floor:1,block:"",row:7,no:10,typeId:"road"},
+                    {id:1083,area:"東",floor:1,block:"",row:7,no:11,typeId:"ng"},
+                    {id:1084,area:"東",floor:1,block:"",row:7,no:12,typeId:"ng"},
+                    {id:1085,area:"東",floor:1,block:"C",row:8,no:1,typeId:"a"},
+                    {id:1086,area:"東",floor:1,block:"C",row:8,no:2,typeId:"a"},
+                    {id:1087,area:"東",floor:1,block:"",row:8,no:3,typeId:"road"},
+                    {id:1088,area:"東",floor:1,block:"C",row:8,no:4,typeId:"b"},
+                    {id:1089,area:"東",floor:1,block:"C",row:8,no:5,typeId:"b"},
+                    {id:1090,area:"東",floor:1,block:"C",row:8,no:6,typeId:"b"},
+                    {id:1091,area:"東",floor:1,block:"D",row:8,no:7,typeId:"b"},
+                    {id:1092,area:"東",floor:1,block:"D",row:8,no:8,typeId:"b"},
+                    {id:1093,area:"東",floor:1,block:"D",row:8,no:9,typeId:"b"},
+                    {id:1094,area:"東",floor:1,block:"",row:8,no:10,typeId:"road"},
+                    {id:1095,area:"東",floor:1,block:"D",row:8,no:11,typeId:"a"},
+                    {id:1096,area:"東",floor:1,block:"D",row:8,no:12,typeId:"a"},
+                    {id:1097,area:"東",floor:1,block:"C",row:9,no:1,typeId:"a"},
+                    {id:1098,area:"東",floor:1,block:"C",row:9,no:2,typeId:"a"},
+                    {id:1099,area:"東",floor:1,block:"",row:9,no:3,typeId:"road"},
+                    {id:1100,area:"東",floor:1,block:"C",row:9,no:4,typeId:"b"},
+                    {id:1101,area:"東",floor:1,block:"C",row:9,no:5,typeId:"b"},
+                    {id:1102,area:"東",floor:1,block:"C",row:9,no:6,typeId:"b"},
+                    {id:1103,area:"東",floor:1,block:"D",row:9,no:7,typeId:"b"},
+                    {id:1104,area:"東",floor:1,block:"D",row:9,no:8,typeId:"b"},
+                    {id:1105,area:"東",floor:1,block:"D",row:9,no:9,typeId:"b"},
+                    {id:1106,area:"東",floor:1,block:"",row:9,no:10,typeId:"road"},
+                    {id:1107,area:"東",floor:1,block:"D",row:9,no:11,typeId:"a"},
+                    {id:1108,area:"東",floor:1,block:"D",row:9,no:12,typeId:"a"},
+                    {id:2001,area:"東",floor:2,block:"E",row:1,no:1,typeId:"arena"},
+                    {id:2002,area:"東",floor:2,block:"E",row:1,no:2,typeId:"arena"},
+                    {id:2003,area:"東",floor:2,block:"E",row:1,no:3,typeId:"arena"},
+                    {id:2004,area:"東",floor:2,block:"E",row:1,no:4,typeId:"arena"},
+                    {id:2005,area:"東",floor:2,block:"E",row:1,no:5,typeId:"arena"},
+                    {id:2006,area:"東",floor:2,block:"",row:1,no:6,typeId:"road"},
+                    {id:2007,area:"東",floor:2,block:"",row:1,no:7,typeId:"road"},
+                    {id:2008,area:"東",floor:2,block:"E",row:1,no:8,typeId:"arena"},
+                    {id:2009,area:"東",floor:2,block:"E",row:1,no:9,typeId:"arena"},
+                    {id:2010,area:"東",floor:2,block:"E",row:1,no:10,typeId:"arena"},
+                    {id:2011,area:"東",floor:2,block:"E",row:1,no:11,typeId:"arena"},
+                    {id:2012,area:"東",floor:2,block:"E",row:1,no:12,typeId:"arena"},
+                    {id:2013,area:"東",floor:2,block:"E",row:2,no:1,typeId:"arena"},
+                    {id:2014,area:"東",floor:2,block:"E",row:2,no:2,typeId:"arena"},
+                    {id:2015,area:"東",floor:2,block:"E",row:2,no:3,typeId:"arena"},
+                    {id:2016,area:"東",floor:2,block:"E",row:2,no:4,typeId:"arena"},
+                    {id:2017,area:"東",floor:2,block:"E",row:2,no:5,typeId:"arena"},
+                    {id:2018,area:"東",floor:2,block:"",row:2,no:6,typeId:"road"},
+                    {id:2019,area:"東",floor:2,block:"",row:2,no:7,typeId:"road"},
+                    {id:2020,area:"東",floor:2,block:"E",row:2,no:8,typeId:"arena"},
+                    {id:2021,area:"東",floor:2,block:"E",row:2,no:9,typeId:"arena"},
+                    {id:2022,area:"東",floor:2,block:"E",row:2,no:10,typeId:"arena"},
+                    {id:2023,area:"東",floor:2,block:"E",row:2,no:11,typeId:"arena"},
+                    {id:2024,area:"東",floor:2,block:"E",row:2,no:12,typeId:"arena"},
+                    {id:2025,area:"東",floor:2,block:"E",row:3,no:1,typeId:"arena"},
+                    {id:2026,area:"東",floor:2,block:"E",row:3,no:2,typeId:"arena"},
+                    {id:2027,area:"東",floor:2,block:"E",row:3,no:3,typeId:"arena"},
+                    {id:2028,area:"東",floor:2,block:"E",row:3,no:4,typeId:"arena"},
+                    {id:2029,area:"東",floor:2,block:"E",row:3,no:5,typeId:"arena"},
+                    {id:2030,area:"東",floor:2,block:"",row:3,no:6,typeId:"road"},
+                    {id:2031,area:"東",floor:2,block:"",row:3,no:7,typeId:"road"},
+                    {id:2032,area:"東",floor:2,block:"E",row:3,no:8,typeId:"arena"},
+                    {id:2033,area:"東",floor:2,block:"E",row:3,no:9,typeId:"arena"},
+                    {id:2034,area:"東",floor:2,block:"E",row:3,no:10,typeId:"arena"},
+                    {id:2035,area:"東",floor:2,block:"E",row:3,no:11,typeId:"arena"},
+                    {id:2036,area:"東",floor:2,block:"E",row:3,no:12,typeId:"arena"},
+                    {id:2037,area:"東",floor:2,block:"",row:4,no:1,typeId:"road"},
+                    {id:2038,area:"東",floor:2,block:"",row:4,no:2,typeId:"road"},
+                    {id:2039,area:"東",floor:2,block:"",row:4,no:3,typeId:"road"},
+                    {id:2040,area:"東",floor:2,block:"",row:4,no:4,typeId:"road"},
+                    {id:2041,area:"東",floor:2,block:"",row:4,no:5,typeId:"road"},
+                    {id:2042,area:"東",floor:2,block:"",row:4,no:6,typeId:"road"},
+                    {id:2043,area:"東",floor:2,block:"",row:4,no:7,typeId:"road"},
+                    {id:2044,area:"東",floor:2,block:"",row:4,no:8,typeId:"road"},
+                    {id:2045,area:"東",floor:2,block:"",row:4,no:9,typeId:"road"},
+                    {id:2046,area:"東",floor:2,block:"",row:4,no:10,typeId:"road"},
+                    {id:2047,area:"東",floor:2,block:"",row:4,no:11,typeId:"road"},
+                    {id:2048,area:"東",floor:2,block:"",row:4,no:12,typeId:"road"},
+                    {id:2049,area:"東",floor:2,block:"F",row:5,no:1,typeId:"a"},
+                    {id:2050,area:"東",floor:2,block:"F",row:5,no:2,typeId:"a"},
+                    {id:2051,area:"東",floor:2,block:"F",row:5,no:3,typeId:"a"},
+                    {id:2052,area:"東",floor:2,block:"F",row:5,no:4,typeId:"a"},
+                    {id:2053,area:"東",floor:2,block:"F",row:5,no:5,typeId:"a"},
+                    {id:2054,area:"東",floor:2,block:"",row:5,no:6,typeId:"road"},
+                    {id:2055,area:"東",floor:2,block:"",row:5,no:7,typeId:"road"},
+                    {id:2056,area:"東",floor:2,block:"G",row:5,no:8,typeId:"a"},
+                    {id:2057,area:"東",floor:2,block:"G",row:5,no:9,typeId:"a"},
+                    {id:2058,area:"東",floor:2,block:"G",row:5,no:10,typeId:"a"},
+                    {id:2059,area:"東",floor:2,block:"G",row:5,no:11,typeId:"a"},
+                    {id:2060,area:"東",floor:2,block:"G",row:5,no:12,typeId:"a"},
+                    {id:2061,area:"東",floor:2,block:"",row:6,no:1,typeId:"ng"},
+                    {id:2062,area:"東",floor:2,block:"",row:6,no:2,typeId:"ng"},
+                    {id:2063,area:"東",floor:2,block:"F",row:6,no:3,typeId:"a"},
+                    {id:2064,area:"東",floor:2,block:"F",row:6,no:4,typeId:"a"},
+                    {id:2065,area:"東",floor:2,block:"F",row:6,no:5,typeId:"a"},
+                    {id:2066,area:"東",floor:2,block:"",row:6,no:6,typeId:"road"},
+                    {id:2067,area:"東",floor:2,block:"",row:6,no:7,typeId:"road"},
+                    {id:2068,area:"東",floor:2,block:"G",row:6,no:8,typeId:"a"},
+                    {id:2069,area:"東",floor:2,block:"G",row:6,no:9,typeId:"a"},
+                    {id:2070,area:"東",floor:2,block:"G",row:6,no:10,typeId:"a"},
+                    {id:2071,area:"東",floor:2,block:"",row:6,no:11,typeId:"ng"},
+                    {id:2072,area:"東",floor:2,block:"",row:6,no:12,typeId:"ng"},
+                    {id:2073,area:"東",floor:2,block:"",row:7,no:1,typeId:"ng"},
+                    {id:2074,area:"東",floor:2,block:"",row:7,no:2,typeId:"ng"},
+                    {id:2075,area:"東",floor:2,block:"F",row:7,no:3,typeId:"a"},
+                    {id:2076,area:"東",floor:2,block:"F",row:7,no:4,typeId:"a"},
+                    {id:2077,area:"東",floor:2,block:"F",row:7,no:5,typeId:"a"},
+                    {id:2078,area:"東",floor:2,block:"",row:7,no:6,typeId:"road"},
+                    {id:2079,area:"東",floor:2,block:"",row:7,no:7,typeId:"road"},
+                    {id:2080,area:"東",floor:2,block:"G",row:7,no:8,typeId:"a"},
+                    {id:2081,area:"東",floor:2,block:"G",row:7,no:9,typeId:"a"},
+                    {id:2082,area:"東",floor:2,block:"G",row:7,no:10,typeId:"a"},
+                    {id:2083,area:"東",floor:2,block:"",row:7,no:11,typeId:"ng"},
+                    {id:2084,area:"東",floor:2,block:"",row:7,no:12,typeId:"ng"},
+                    {id:2085,area:"東",floor:2,block:"F",row:8,no:1,typeId:"a"},
+                    {id:2086,area:"東",floor:2,block:"F",row:8,no:2,typeId:"a"},
+                    {id:2087,area:"東",floor:2,block:"F",row:8,no:3,typeId:"a"},
+                    {id:2088,area:"東",floor:2,block:"F",row:8,no:4,typeId:"a"},
+                    {id:2089,area:"東",floor:2,block:"F",row:8,no:5,typeId:"a"},
+                    {id:2090,area:"東",floor:2,block:"",row:8,no:6,typeId:"road"},
+                    {id:2091,area:"東",floor:2,block:"",row:8,no:7,typeId:"road"},
+                    {id:2092,area:"東",floor:2,block:"G",row:8,no:8,typeId:"a"},
+                    {id:2093,area:"東",floor:2,block:"G",row:8,no:9,typeId:"a"},
+                    {id:2094,area:"東",floor:2,block:"G",row:8,no:10,typeId:"a"},
+                    {id:2095,area:"東",floor:2,block:"G",row:8,no:11,typeId:"a"},
+                    {id:2096,area:"東",floor:2,block:"G",row:8,no:12,typeId:"a"},
+                    {id:2097,area:"東",floor:2,block:"F",row:9,no:1,typeId:"a"},
+                    {id:2098,area:"東",floor:2,block:"F",row:9,no:2,typeId:"a"},
+                    {id:2099,area:"東",floor:2,block:"F",row:9,no:3,typeId:"a"},
+                    {id:2100,area:"東",floor:2,block:"F",row:9,no:4,typeId:"a"},
+                    {id:2101,area:"東",floor:2,block:"F",row:9,no:5,typeId:"a"},
+                    {id:2102,area:"東",floor:2,block:"",row:9,no:6,typeId:"road"},
+                    {id:2103,area:"東",floor:2,block:"",row:9,no:7,typeId:"road"},
+                    {id:2104,area:"東",floor:2,block:"G",row:9,no:8,typeId:"a"},
+                    {id:2105,area:"東",floor:2,block:"G",row:9,no:9,typeId:"a"},
+                    {id:2106,area:"東",floor:2,block:"G",row:9,no:10,typeId:"a"},
+                    {id:2107,area:"東",floor:2,block:"G",row:9,no:11,typeId:"a"},
+                    {id:2108,area:"東",floor:2,block:"G",row:9,no:12,typeId:"a"},
+                    {id:3001,area:"東",floor:3,block:"H",row:1,no:1,typeId:"b"},
+                    {id:3002,area:"東",floor:3,block:"H",row:1,no:2,typeId:"b"},
+                    {id:3003,area:"東",floor:3,block:"H",row:1,no:3,typeId:"b"},
+                    {id:3004,area:"東",floor:3,block:"H",row:1,no:4,typeId:"b"},
+                    {id:3005,area:"東",floor:3,block:"H",row:1,no:5,typeId:"b"},
+                    {id:3006,area:"東",floor:3,block:"H",row:1,no:6,typeId:"b"},
+                    {id:3007,area:"東",floor:3,block:"H",row:1,no:7,typeId:"b"},
+                    {id:3008,area:"東",floor:3,block:"H",row:1,no:8,typeId:"b"},
+                    {id:3009,area:"東",floor:3,block:"H",row:1,no:9,typeId:"b"},
+                    {id:3010,area:"東",floor:3,block:"H",row:1,no:10,typeId:"b"},
+                    {id:3011,area:"東",floor:3,block:"H",row:1,no:11,typeId:"b"},
+                    {id:3012,area:"東",floor:3,block:"H",row:1,no:12,typeId:"b"},
+                    {id:3013,area:"東",floor:3,block:"H",row:2,no:1,typeId:"b"},
+                    {id:3014,area:"東",floor:3,block:"H",row:2,no:2,typeId:"b"},
+                    {id:3015,area:"東",floor:3,block:"H",row:2,no:3,typeId:"b"},
+                    {id:3016,area:"東",floor:3,block:"H",row:2,no:4,typeId:"b"},
+                    {id:3017,area:"東",floor:3,block:"H",row:2,no:5,typeId:"b"},
+                    {id:3018,area:"東",floor:3,block:"H",row:2,no:6,typeId:"b"},
+                    {id:3019,area:"東",floor:3,block:"H",row:2,no:7,typeId:"b"},
+                    {id:3020,area:"東",floor:3,block:"H",row:2,no:8,typeId:"b"},
+                    {id:3021,area:"東",floor:3,block:"H",row:2,no:9,typeId:"b"},
+                    {id:3022,area:"東",floor:3,block:"H",row:2,no:10,typeId:"b"},
+                    {id:3023,area:"東",floor:3,block:"H",row:2,no:11,typeId:"b"},
+                    {id:3024,area:"東",floor:3,block:"H",row:2,no:12,typeId:"b"},
+                    {id:3025,area:"東",floor:3,block:"H",row:3,no:1,typeId:"b"},
+                    {id:3026,area:"東",floor:3,block:"H",row:3,no:2,typeId:"b"},
+                    {id:3027,area:"東",floor:3,block:"H",row:3,no:3,typeId:"b"},
+                    {id:3028,area:"東",floor:3,block:"H",row:3,no:4,typeId:"b"},
+                    {id:3029,area:"東",floor:3,block:"H",row:3,no:5,typeId:"b"},
+                    {id:3030,area:"東",floor:3,block:"H",row:3,no:6,typeId:"b"},
+                    {id:3031,area:"東",floor:3,block:"H",row:3,no:7,typeId:"b"},
+                    {id:3032,area:"東",floor:3,block:"H",row:3,no:8,typeId:"b"},
+                    {id:3033,area:"東",floor:3,block:"H",row:3,no:9,typeId:"b"},
+                    {id:3034,area:"東",floor:3,block:"H",row:3,no:10,typeId:"b"},
+                    {id:3035,area:"東",floor:3,block:"H",row:3,no:11,typeId:"b"},
+                    {id:3036,area:"東",floor:3,block:"H",row:3,no:12,typeId:"b"},
+                    {id:3037,area:"東",floor:3,block:"H",row:4,no:1,typeId:"b"},
+                    {id:3038,area:"東",floor:3,block:"H",row:4,no:2,typeId:"b"},
+                    {id:3039,area:"東",floor:3,block:"H",row:4,no:3,typeId:"b"},
+                    {id:3040,area:"東",floor:3,block:"H",row:4,no:4,typeId:"b"},
+                    {id:3041,area:"東",floor:3,block:"H",row:4,no:5,typeId:"b"},
+                    {id:3042,area:"東",floor:3,block:"H",row:4,no:6,typeId:"b"},
+                    {id:3043,area:"東",floor:3,block:"H",row:4,no:7,typeId:"b"},
+                    {id:3044,area:"東",floor:3,block:"H",row:4,no:8,typeId:"b"},
+                    {id:3045,area:"東",floor:3,block:"H",row:4,no:9,typeId:"b"},
+                    {id:3046,area:"東",floor:3,block:"H",row:4,no:10,typeId:"b"},
+                    {id:3047,area:"東",floor:3,block:"H",row:4,no:11,typeId:"b"},
+                    {id:3048,area:"東",floor:3,block:"H",row:4,no:12,typeId:"b"},
+                    {id:3049,area:"東",floor:3,block:"H",row:5,no:1,typeId:"b"},
+                    {id:3050,area:"東",floor:3,block:"H",row:5,no:2,typeId:"b"},
+                    {id:3051,area:"東",floor:3,block:"H",row:5,no:3,typeId:"b"},
+                    {id:3052,area:"東",floor:3,block:"H",row:5,no:4,typeId:"b"},
+                    {id:3053,area:"東",floor:3,block:"H",row:5,no:5,typeId:"b"},
+                    {id:3054,area:"東",floor:3,block:"H",row:5,no:6,typeId:"b"},
+                    {id:3055,area:"東",floor:3,block:"H",row:5,no:7,typeId:"b"},
+                    {id:3056,area:"東",floor:3,block:"H",row:5,no:8,typeId:"b"},
+                    {id:3057,area:"東",floor:3,block:"H",row:5,no:9,typeId:"b"},
+                    {id:3058,area:"東",floor:3,block:"H",row:5,no:10,typeId:"b"},
+                    {id:3059,area:"東",floor:3,block:"H",row:5,no:11,typeId:"b"},
+                    {id:3060,area:"東",floor:3,block:"H",row:5,no:12,typeId:"b"},
+                    {id:3061,area:"東",floor:3,block:"H",row:6,no:1,typeId:"b"},
+                    {id:3062,area:"東",floor:3,block:"H",row:6,no:2,typeId:"b"},
+                    {id:3063,area:"東",floor:3,block:"H",row:6,no:3,typeId:"b"},
+                    {id:3064,area:"東",floor:3,block:"H",row:6,no:4,typeId:"b"},
+                    {id:3065,area:"東",floor:3,block:"H",row:6,no:5,typeId:"b"},
+                    {id:3066,area:"東",floor:3,block:"H",row:6,no:6,typeId:"b"},
+                    {id:3067,area:"東",floor:3,block:"H",row:6,no:7,typeId:"b"},
+                    {id:3068,area:"東",floor:3,block:"H",row:6,no:8,typeId:"b"},
+                    {id:3069,area:"東",floor:3,block:"H",row:6,no:9,typeId:"b"},
+                    {id:3070,area:"東",floor:3,block:"H",row:6,no:10,typeId:"b"},
+                    {id:3071,area:"東",floor:3,block:"H",row:6,no:11,typeId:"b"},
+                    {id:3072,area:"東",floor:3,block:"H",row:6,no:12,typeId:"b"},
+                    {id:3073,area:"東",floor:3,block:"H",row:7,no:1,typeId:"b"},
+                    {id:3074,area:"東",floor:3,block:"H",row:7,no:2,typeId:"b"},
+                    {id:3075,area:"東",floor:3,block:"H",row:7,no:3,typeId:"b"},
+                    {id:3076,area:"東",floor:3,block:"H",row:7,no:4,typeId:"b"},
+                    {id:3077,area:"東",floor:3,block:"H",row:7,no:5,typeId:"b"},
+                    {id:3078,area:"東",floor:3,block:"H",row:7,no:6,typeId:"b"},
+                    {id:3079,area:"東",floor:3,block:"H",row:7,no:7,typeId:"b"},
+                    {id:3080,area:"東",floor:3,block:"H",row:7,no:8,typeId:"b"},
+                    {id:3081,area:"東",floor:3,block:"H",row:7,no:9,typeId:"b"},
+                    {id:3082,area:"東",floor:3,block:"H",row:7,no:10,typeId:"b"},
+                    {id:3083,area:"東",floor:3,block:"H",row:7,no:11,typeId:"b"},
+                    {id:3084,area:"東",floor:3,block:"H",row:7,no:12,typeId:"b"},
+                    {id:3085,area:"東",floor:3,block:"H",row:8,no:1,typeId:"b"},
+                    {id:3086,area:"東",floor:3,block:"H",row:8,no:2,typeId:"b"},
+                    {id:3087,area:"東",floor:3,block:"H",row:8,no:3,typeId:"b"},
+                    {id:3088,area:"東",floor:3,block:"H",row:8,no:4,typeId:"b"},
+                    {id:3089,area:"東",floor:3,block:"H",row:8,no:5,typeId:"b"},
+                    {id:3090,area:"東",floor:3,block:"H",row:8,no:6,typeId:"b"},
+                    {id:3091,area:"東",floor:3,block:"H",row:8,no:7,typeId:"b"},
+                    {id:3092,area:"東",floor:3,block:"H",row:8,no:8,typeId:"b"},
+                    {id:3093,area:"東",floor:3,block:"H",row:8,no:9,typeId:"b"},
+                    {id:3094,area:"東",floor:3,block:"H",row:8,no:10,typeId:"b"},
+                    {id:3095,area:"東",floor:3,block:"H",row:8,no:11,typeId:"b"},
+                    {id:3096,area:"東",floor:3,block:"H",row:8,no:12,typeId:"b"},
+                    {id:3097,area:"東",floor:3,block:"H",row:9,no:1,typeId:"b"},
+                    {id:3098,area:"東",floor:3,block:"H",row:9,no:2,typeId:"b"},
+                    {id:3099,area:"東",floor:3,block:"H",row:9,no:3,typeId:"b"},
+                    {id:3100,area:"東",floor:3,block:"H",row:9,no:4,typeId:"b"},
+                    {id:3101,area:"東",floor:3,block:"H",row:9,no:5,typeId:"b"},
+                    {id:3102,area:"東",floor:3,block:"H",row:9,no:6,typeId:"b"},
+                    {id:3103,area:"東",floor:3,block:"H",row:9,no:7,typeId:"b"},
+                    {id:3104,area:"東",floor:3,block:"H",row:9,no:8,typeId:"b"},
+                    {id:3105,area:"東",floor:3,block:"H",row:9,no:9,typeId:"b"},
+                    {id:3106,area:"東",floor:3,block:"H",row:9,no:10,typeId:"b"},
+                    {id:3107,area:"東",floor:3,block:"H",row:9,no:11,typeId:"b"},
+                    {id:3108,area:"東",floor:3,block:"H",row:9,no:12,typeId:"b"},
+                ];
+                const result = {};
+                rawData.forEach(tmp => {
+                    if(!result.hasOwnProperty(tmp.area)) {
+                        result[tmp.area] = {};
+                    }
+                    if(!result[tmp.area].hasOwnProperty(tmp.floor)) {
+                        result[tmp.area][tmp.floor] = {};
+                    }
+                    if(!result[tmp.area][tmp.floor].hasOwnProperty(`${tmp.row}-${tmp.no}`)) {
+                        result[tmp.area][tmp.floor][`${tmp.row}-${tmp.no}`] = {};
+                    }
+                    result[tmp.area][tmp.floor][`${tmp.row}-${tmp.no}`] = tmp;
+                });
+                return result;
+            })(),
+        };
+        data.types.forEach((type, index) => {
+            data.items.push({
+                id: `item${index + 1}`, type: type,
+            });
+        });
+
+        const selectedView = ref(data.views[0]);
+        const selectedArea = ref(data.areas[0]);
+        const selectedBlock = ref(data.blocks[0]);
+        const selectedFloor = ref(data.floors[2]);
+        const selectedItem = ref(data.items[0]);
+        const currentSeats = ref(
+            data.seats[selectedArea.value.value][selectedFloor.value.value]
+        );
+        const isMouseDown = ref(false);
+        const maxRowNo = ref(
+            currentSeats.value.length === 0
+                ? 0
+                : Math.max(...Object.values(currentSeats.value).map(seat => seat.row))
+        );
+        const maxColNo = ref(
+            currentSeats.value.length === 0
+                ? 1
+                : Math.max(...Object.values(currentSeats.value).map(seat => seat.no)) + 1
+        )
+
+        const privateFun = {
+            updateCurrentSeats: () => {
+                if(!data.seats[selectedArea.value.value]) {
+                    data.seats[selectedArea.value.value] = {};
+                }
+                if(!data.seats[selectedArea.value.value][selectedFloor.value.value]) {
+                    data.seats[selectedArea.value.value][selectedFloor.value.value] = {};
+                }
+                currentSeats.value = data.seats[selectedArea.value.value][selectedFloor.value.value];
+            },
+            updateMaxRowNo: () => {
+                maxRowNo.value = Object.keys(currentSeats.value).length === 0
+                    ? 0
+                    : Math.max(...Object.values(currentSeats.value).map(seat => seat.row))
+            },
+            updateMaxColNo: () => {
+                maxColNo.value = Object.keys(currentSeats.value).length === 0
+                    ? 1
+                    : Math.max(...Object.values(currentSeats.value).map(seat => seat.no)) + 1
+            },
+        };
+
+        const fun = {
+            seatType: (rowNo, colNo) => {
+                try {
+                    const typeId = currentSeats.value[`${rowNo}-${colNo - 1}`].typeId;
+                    const result = data.types.find(type => type.id === typeId);
+                    return result ?? null;
+                } catch(e) {
+                    return null;
+                }
+            },
+            blockInfo: (rowNo, colNo) => {
+                const notSeat = {
+                    class: 'bg-gray-500',
+                    value: ''
+                };
+                const seat = currentSeats.value[`${rowNo}-${colNo - 1}`];
+                const blockValue = currentSeats.value[`${rowNo}-${colNo - 1}`].block;
+                if(seat.block === '') {
+                    if(['road', 'ng', 'delete'].includes(seat.typeId)) {
+                        return notSeat;
+                    }
+                    return { class: '', value: '' };
+                }
+
+                return data.blocks.find(block => block.value === seat.block);
+            },
+            changeArea: (area) => {
+                selectedArea.value = area;
+                privateFun.updateCurrentSeats();
+                privateFun.updateMaxRowNo();
+                privateFun.updateMaxColNo();
+            },
+            changeFloor: (floor) => {
+                selectedFloor.value = floor;
+                privateFun.updateCurrentSeats();
+                privateFun.updateMaxRowNo();
+                privateFun.updateMaxColNo();
+            },
+            addRow: () => {
+                for(let no = 1; no < maxColNo.value; no++) {
+                    data.seats[selectedArea.value.value][selectedFloor.value.value][`${maxRowNo.value + 1}-${no}`] = {
+                        id: data.seats.length, area: selectedArea.value.value, floor: selectedFloor.value.value,
+                        block: '', row: maxRowNo.value + 1, no: no, typeId: ''
+                    };
+                }
+                privateFun.updateCurrentSeats();
+                maxRowNo.value += 1;
+            },
+            addCol: () => {
+                for(let row = 1; row <= maxRowNo.value; row++) {
+                    data.seats[selectedArea.value.value][selectedFloor.value.value][`${row}-${maxColNo.value}`] = {
+                        id: data.seats.length, area: selectedArea.value.value, floor: selectedFloor.value.value,
+                        block: '', row: row, no: maxColNo.value, typeId: ''
+                    };
+                }
+                privateFun.updateCurrentSeats();
+                maxColNo.value += 1;
+            },
+            setSeat: (rowNo, colNo) => {
+                if(this.event.type !== 'click' && !isMouseDown.value) { return; }
+
+                let seat = currentSeats.value[`${rowNo}-${colNo - 1}`];
+
+                switch (selectedView.value.id) {
+                    case 'view1':
+                        seat.typeId = selectedItem.value.type.id === 'delete' ? '' : selectedItem.value.type.id;
+                        if(['road', 'ng', 'delete'].includes(selectedItem.value.type.id)) {
+                            seat.block = '';
+                        }
+                        break;
+                    case 'view2':
+                        if(['road', 'ng'].includes(seat.typeId)) { break; }
+                        seat.block = selectedBlock.value.value;
+                        break;
+                }
+            },
+        };
+
+        return {
+            data,
+            selectedView, selectedArea, selectedBlock, selectedFloor, selectedItem, isMouseDown,
+            maxRowNo, maxColNo,
+            currentSeats,
+            fun
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
